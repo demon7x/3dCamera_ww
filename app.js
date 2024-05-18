@@ -122,25 +122,29 @@ socket.on('preview', function(data){
     console.log("Starting preview...");
 
     const args = [
-        '-o', '-',   // output to stdout
-        '-t', '0',   // no timeout (continuous capture)
-        '-n'         // no preview window
+        '-f', 'v4l2',          // Use Video4Linux2 driver
+        '-i', '/dev/video0',   // Input device
+        '-vf', 'scale=640:480', // Scale video to 640x480
+        '-f', 'mpegts',        // Output format
+        'pipe:1'               // Output to stdout
     ];
 
-    const stream = spawn('libcamera-vid', args);
+    const stream = spawn('ffmpeg', args);
 
     stream.stdout.on('data', (data) => {
-        socket.emit('camera-stream', { clientSocketId: data.clientSocketId, stream: data });
+        socket.emit('camera-stream', { clientSocketId: data.clientSocketId, stream: data.toString('base64') });
     });
 
     stream.stderr.on('data', (data) => {
-        console.error(`stderr: ${data}`);
+        console.error(`ffmpeg stderr: ${data}`);
     });
 
     stream.on('close', (code) => {
-        console.log(`child process exited with code ${code}`);
+        console.log(`ffmpeg process exited with code ${code}`);
     });
 });
+
+
 
 
 function heartbeat() {
