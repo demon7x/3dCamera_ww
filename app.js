@@ -120,31 +120,21 @@ socket.on('update-name', function(data){
 
 socket.on('preview', function(data){
     console.log("Starting preview...");
+    
+    const pythonProcess = spawn('python3', ['stream.py']);
 
-    const args = [
-        '-f', 'video4linux2',
-        '-input_format','mjpeg',
-        '-video-size','640x360',         // Use Video4Linux2 driver
-        '-i', '/dev/video0',
-        '-vframes','1',   // Input device
-        '-f', 'mjpeg','-',        // Output format
-    ];
-
-    const stream = spawn('ffmpeg', args);
-
-    stream.stdout.on('data', (data) => {
-        socket.emit('camera-stream', { clientSocketId: data.clientSocketId, stream: data.toString('base64') });
+    pythonProcess.stdout.on('data', (data) => {
+        console.log(`stdout: ${data}`);
     });
 
-    stream.stderr.on('data', (data) => {
-        console.error(`ffmpeg stderr: ${data}`);
+    pythonProcess.stderr.on('data', (data) => {
+        console.error(`stderr: ${data}`);
     });
 
-    stream.on('close', (code) => {
-        console.log(`ffmpeg process exited with code ${code}`);
+    pythonProcess.on('close', (code) => {
+        console.log(`child process exited with code ${code}`);
     });
 });
-
 
 
 
