@@ -118,6 +118,33 @@ socket.on('update-name', function(data){
 
 });
 
+
+socket.on('preview', function(data){
+    console.log("Starting preview...");
+
+    const args = [
+        '-o', '-',   // output to stdout
+        '-t', '0',   // no timeout (continuous capture)
+        '-n'         // no preview window
+    ];
+
+    const stream = spawn('libcamera-vid', args);
+
+    stream.stdout.on('data', (data) => {
+        socket.emit('camera-stream', { clientSocketId: data.clientSocketId, stream: data });
+    });
+
+    stream.stderr.on('data', (data) => {
+        console.error(`stderr: ${data}`);
+    });
+
+    stream.on('close', (code) => {
+        console.log(`child process exited with code ${code}`);
+    });
+});
+
+
+
 function heartbeat() {
     if (ipAddress == null) {
         lookupIp();
