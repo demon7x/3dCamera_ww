@@ -118,7 +118,6 @@ socket.on('update-name', function(data){
 
 });
 
-
 socket.on('preview', function(data){
     console.log("Starting preview...");
 
@@ -142,7 +141,6 @@ socket.on('preview', function(data){
         console.log(`child process exited with code ${code}`);
     });
 });
-
 
 
 function heartbeat() {
