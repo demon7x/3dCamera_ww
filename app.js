@@ -207,10 +207,10 @@ function takeImage() {
         //'-h', 1944,  // height
         //'-t', 100,  // how long should taking the picture take?
         '-q', 90,     // quality
-        '-awb', 'fluorescent', 
+        //'-awb', 'fluorescent', 
         '-o', getAbsoluteImagePath()   // path + name
     ];
-    var imageProcess = spawn('raspistill', args);
+    var imageProcess = spawn('libcamera-still', args);
     // The image should take about 5 seconds, if its going after 10 kill it!
     setTimeout(function(){ imageProcess.kill()}, 10000);
     
