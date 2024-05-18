@@ -136,7 +136,22 @@ socket.on('preview', function(data){
     });
 });
 
+socket.on('update-focus', function(data) {
+    console.log(`Updating focus to ${data.focusValue}`);
+    const pythonFocusProcess = spawn('python3', ['update_focus.py', data.focusValue]);
 
+    pythonFocusProcess.stdout.on('data', (data) => {
+        console.log(`stdout: ${data}`);
+    });
+
+    pythonFocusProcess.stderr.on('data', (data) => {
+        console.error(`stderr: ${data}`);
+    });
+
+    pythonFocusProcess.on('close', (code) => {
+        console.log(`child process exited with code ${code}`);
+    });
+});
 
 function heartbeat() {
     if (ipAddress == null) {
