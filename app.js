@@ -122,11 +122,12 @@ socket.on('preview', function(data){
     console.log("Starting preview...");
 
     const args = [
-        '-f', 'v4l2',          // Use Video4Linux2 driver
-        '-i', '/dev/video0',   // Input device
-        '-vf', 'scale=640:480', // Scale video to 640x480
-        '-f', 'mpegts',        // Output format
-        'pipe:1'               // Output to stdout
+        '-f', 'video4linux2',
+        '-input_format','mjpeg',
+        '-video-size','640x360',         // Use Video4Linux2 driver
+        '-i', '/dev/video0',
+        '-vframes','1',   // Input device
+        '-f', 'mjpeg','-',        // Output format
     ];
 
     const stream = spawn('ffmpeg', args);
