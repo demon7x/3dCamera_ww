@@ -175,6 +175,7 @@ socket.on('preview', function(data){
         '--inline',
         '--codec', 'mjpeg',
         '--listen',
+        '-n',
         '-o', 'tcp://0.0.0.0:8888' // Stream over TCP
     ]);
 
