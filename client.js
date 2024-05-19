@@ -173,6 +173,8 @@ socket.on('preview', function(data){
         '--height', '480',
         '--framerate', '30',
         '--inline',
+        '--codec', 'mjpeg',
+        '--listen',
         '-o', 'tcp://0.0.0.0:8888' // Stream over TCP
     ]);
 
