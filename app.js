@@ -70,22 +70,18 @@ function boot() {
     
     console.log("Startup complete");
 }
-function loadFocusValue(callback) {
-    fs.readFile(focusFilePath, 'utf8', (err, data) => {
-        if (err) {
-            console.log("No saved focus value found");
-            callback(null);
-            return;
-        }
-        try {
-            const focusData = JSON.parse(data);
-            callback(focusData.focusValue);
-        } catch (err) {
-            console.error('Error parsing focus value JSON:', err);
-            callback(null);
-        }
-    });
+
+async function loadFocusValue() {
+    try {
+        const data = await fs.readFile(focusFilePath, 'utf8');
+        const focusData = JSON.parse(data);
+        return focusData.focusValue;
+    } catch (err) {
+        console.log("No saved focus value found");
+        return null;
+    }
 }
+
 
 function saveFocusValue(focusValue) {
     const focusData = { focusValue: focusValue };
@@ -111,8 +107,8 @@ socket.on('connect', function(){
 
 socket.on('take-photo', function(data){
     console.log("Taking a photo");
-
-    loadFocusValue(focusValue);
+    
+    const focusValue = loadFocusValue();
     
     photoStartTime  = Date.now();
     lastReceiveTime = data.time
@@ -257,7 +253,7 @@ function sendImage(code) {
     });
 }
 
-function takeImage() {
+function takeImage(focusValue) {
     var args = [
         //'-w', 2592,   // width
         //'-h', 1944,  // height
