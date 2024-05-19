@@ -180,13 +180,14 @@ socket.on('preview', function(data){
     ]);
 
     previewProcess.stderr.on('data', (data) => {
+        console.error("error process");
         console.error(`stderr: ${data}`);
     });
 
     previewProcess.on('close', (code) => {
         console.log(`child process exited with code ${code}`);
     });
-
+    console.log("Preview started");
     socket.emit('preview-url', 'tcp://' + ipAddress + ':8888');
 });
 
