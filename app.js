@@ -20,7 +20,8 @@ var path = require('path');
 
 var socket = require('socket.io-client')(socketServer);
 
-var fs = require('fs').promises;
+var fs = require('fs')
+var fsp = require('fs').promises;
 
 var FormData = require('form-data');
 var request  = require('request');
@@ -73,7 +74,7 @@ function boot() {
 
 async function loadFocusValue() {
     try {
-        const data = await fs.readFile(focusFilePath, 'utf8');
+        const data = await fsp.readFile(focusFilePath, 'utf8');
         const focusData = JSON.parse(data);
         return focusData.focusValue;
     } catch (err) {
@@ -86,7 +87,7 @@ async function loadFocusValue() {
 
 function saveFocusValue(focusValue) {
     const focusData = { focusValue: focusValue };
-    fs.writeFile(focusFilePath, JSON.stringify(focusData), (err) => {
+    fsp.writeFile(focusFilePath, JSON.stringify(focusData), (err) => {
         if (err) {
             console.error('Failed to save focus value:', err);
         } else {
