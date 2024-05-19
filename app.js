@@ -77,6 +77,7 @@ async function loadFocusValue() {
         const focusData = JSON.parse(data);
         return focusData.focusValue;
     } catch (err) {
+        console.log(err);
         console.log("No saved focus value found");
         return null;
     }
