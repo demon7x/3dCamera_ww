@@ -171,7 +171,7 @@ socket.on('preview', function(data){
     previewProcess = spawn('libcamera-vid', [
         '--width', '640',
         '--height', '480',
-        '--framerate', '30',
+        //'--framerate', '30',
         '--inline',
         '--codec', 'mjpeg',
         '--listen',
