@@ -152,20 +152,32 @@ socket.on('update-name', function(data){
 socket.on('preview', function(data){
     console.log("Starting preview...");
     
-    const pythonProcess = spawn('python3', ['stream.py']);
+    const videoProcess = spawn('libcamera-vid', [
+        '--width', '640',
+        '--height', '480',
+        '--framerate', '30',
+        '--inline', '-o', '-', // output to stdout
+        '--listen', '-n'
+    ]);
 
-    pythonProcess.stdout.on('data', (data) => {
-        console.log(`stdout: ${data}`);
+    videoProcess.stdout.on('data', (data) => {
+        socket.emit('camera-stream', data.toString('base64'));
     });
 
-    pythonProcess.stderr.on('data', (data) => {
+    videoProcess.stderr.on('data', (data) => {
         console.error(`stderr: ${data}`);
     });
 
-    pythonProcess.on('close', (code) => {
+    videoProcess.on('close', (code) => {
         console.log(`child process exited with code ${code}`);
     });
+
+    socket.on('stop-preview', function(){
+        console.log("Stopping preview...");
+        videoProcess.kill();
+    });
 });
+
 
 socket.on('update-focus', function(data) {
     console.log(`Updating focus to ${data.focusValue}`);
