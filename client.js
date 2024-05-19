@@ -161,37 +161,27 @@ socket.on('update-name', function(data){
     });
 });
 
-socket.on('preview', function(data){
+socket.on('preview', function(data) {
     console.log("Starting preview...");
 
     if (previewProcess) {
         previewProcess.kill();
     }
     
-    previewProcess = spawn('libcamera-vid', [
-        '--width', '640',
-        '--height', '480',
-        //'--framerate', '30',
-        '--inline',
-        '--codec', 'mjpeg',
-        '--listen',
-        '-n',
-        '-o', 'tcp://0.0.0.0:8888' // Stream over TCP
-    ]);
+    previewProcess = spawn('python3', ['camera_stream.py']);
 
     previewProcess.stderr.on('data', (data) => {
-        console.error("error process");
         console.error(`stderr: ${data}`);
     });
 
     previewProcess.on('close', (code) => {
         console.log(`child process exited with code ${code}`);
     });
-    console.log("Preview started");
-    socket.emit('preview-url', 'tcp://' + ipAddress + ':8888');
+
+    socket.emit('preview-url', 'http://' + ipAddress + ':8888');
 });
 
-socket.on('stop-preview', function(){
+socket.on('stop-preview', function() {
     console.log("Stopping preview...");
     if (previewProcess) {
         previewProcess.kill();
