@@ -73,7 +73,7 @@ function boot() {
 
 async function loadFocusValue() {
     try {
-        const data = await fs.readFile(focusFilePath, 'utf8',err);
+        const data = await fs.readFile(focusFilePath, 'utf8');
         const focusData = JSON.parse(data);
         return focusData.focusValue;
     } catch (err) {
@@ -106,10 +106,10 @@ socket.on('connect', function(){
     var heartbeatIntervalID = setInterval(heartbeat, 1000);
 });
 
-socket.on('take-photo', function(data){
+socket.on('take-photo', async function(data){
     console.log("Taking a photo");
     
-    const focusValue = loadFocusValue();
+    const focusValue = await loadFocusValue();
     
     photoStartTime  = Date.now();
     lastReceiveTime = data.time
