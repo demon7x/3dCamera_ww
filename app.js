@@ -38,6 +38,8 @@ var updateInProgress = false;
 var imagePath = '/';
 var imageName = 'output.jpg';
 
+
+var focusFilePath = path.join(__dirname, 'focus_value.json');
 var deviceNamePath = path.join(__dirname, "/device-name");
 
 var cameraName = null;
@@ -68,6 +70,35 @@ function boot() {
     
     console.log("Startup complete");
 }
+function loadFocusValue(callback) {
+    fs.readFile(focusFilePath, 'utf8', (err, data) => {
+        if (err) {
+            console.log("No saved focus value found");
+            callback(null);
+            return;
+        }
+        try {
+            const focusData = JSON.parse(data);
+            callback(focusData.focusValue);
+        } catch (err) {
+            console.error('Error parsing focus value JSON:', err);
+            callback(null);
+        }
+    });
+}
+
+function saveFocusValue(focusValue) {
+    const focusData = { focusValue: focusValue };
+    fs.writeFile(focusFilePath, JSON.stringify(focusData), (err) => {
+        if (err) {
+            console.error('Failed to save focus value:', err);
+        } else {
+            console.log('Focus value saved:', focusValue);
+        }
+    });
+}
+
+
 
 socket.on('connect', function(){
     console.log('A socket connection was made');
@@ -80,12 +111,14 @@ socket.on('connect', function(){
 
 socket.on('take-photo', function(data){
     console.log("Taking a photo");
+
+    loadFocusValue(focusValue);
     
     photoStartTime  = Date.now();
     lastReceiveTime = data.time
     takeId          = data.takeId;
     
-    takeImage();
+    takeImage(focusValue);
 });
 
 socket.on('update-software', function(data){
@@ -138,19 +171,7 @@ socket.on('preview', function(data){
 
 socket.on('update-focus', function(data) {
     console.log(`Updating focus to ${data.focusValue}`);
-    const pythonFocusProcess = spawn('python3', ['update_focus.py', data.focusValue]);
-
-    pythonFocusProcess.stdout.on('data', (data) => {
-        console.log(`stdout: ${data}`);
-    });
-
-    pythonFocusProcess.stderr.on('data', (data) => {
-        console.error(`stderr: ${data}`);
-    });
-
-    pythonFocusProcess.on('close', (code) => {
-        console.log(`child process exited with code ${code}`);
-    });
+    saveFocusValue(data.focusValue);
 });
 
 function heartbeat() {
@@ -245,6 +266,10 @@ function takeImage() {
         //'-awb', 'fluorescent', 
         '-o', getAbsoluteImagePath()   // path + name
     ];
+
+    if (focusValue) {
+        args.push('--lens-position', focusValue); // Add focus value to the command arguments
+    }
     var imageProcess = spawn('libcamera-still', args);
     // The image should take about 5 seconds, if its going after 10 kill it!
     setTimeout(function(){ imageProcess.kill()}, 10000);
