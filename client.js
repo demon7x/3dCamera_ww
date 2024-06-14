@@ -289,6 +289,7 @@ function updateSoftware() {
         if (error !== null) {
             console.log('exec error: ' + error);
         }
+        console.log("Update complete");
         process.exit();
     });
 }
