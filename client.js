@@ -282,6 +282,7 @@ function takeImage(focusValue) {
 }
 
 function updateSoftware() {
+    process.env.HOME = require('os').homedir();	
     childProcess = exec('cd ' + __dirname + '; git pull', function (error, stdout, stderr) {
         console.log('stdout: ' + stdout);
         console.log('stderr: ' + stderr);
