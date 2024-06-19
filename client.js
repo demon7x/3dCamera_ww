@@ -268,7 +268,7 @@ function sendImage(code) {
 
 function takeImage(focusValue) {
     var args = [
-        '-q', 90,     
+        '-q', 100,     
         '-o', getAbsoluteImagePath()   
     ];
 
