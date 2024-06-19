@@ -2,8 +2,8 @@ var version = '1.28';
 
 var args = process.argv.slice(2);
 
-var httpServer = 'http://192.168.81.7:8080';
-var socketServer = 'http://192.168.81.7:3000/';
+var httpServer = 'http://192.168.81.179:8080';
+var socketServer = 'http://192.168.81.179:3000/';
 if (typeof args[0] != 'undefined') {		
     socketServer = 'http://' + args[0];		
 }
