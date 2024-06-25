@@ -269,7 +269,9 @@ function sendImage(code) {
 function takeImage(focusValue) {
     var args = [
         '-q', 100,     
-        '-o', getAbsoluteImagePath()   
+        '-o', getAbsoluteImagePath() ,
+        '--brightness', 0.5,
+
     ];
 
     if (focusValue) {
