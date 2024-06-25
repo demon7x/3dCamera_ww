@@ -270,7 +270,7 @@ function takeImage(focusValue) {
     var args = [
         '-q', 100,     
         '-o', getAbsoluteImagePath() ,
-        '--brightness', 0.5,
+        '--brightness', 0.2,
 
     ];
 
