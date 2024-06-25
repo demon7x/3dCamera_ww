@@ -272,7 +272,7 @@ function takeImage(focusValue, command) {  // Accept the command parameter
     var args = [
         '-q', 100,
         '-o', getAbsoluteImagePath(),
-        '--brightness', 0.0
+        //'--brightness', 0.0
     ];
 
     if (focusValue) {
