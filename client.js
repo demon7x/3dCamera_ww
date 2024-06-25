@@ -242,7 +242,8 @@ function sendImage(code) {
         });
     });
     
-    var fileName = guid() + '.jpg';
+    //var fileName = guid() + '.jpg';
+    var fileName = os.hostname() + '.jpg';
     
     var form = new FormData();
     form.append('takeId', takeId);
