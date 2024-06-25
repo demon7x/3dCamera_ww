@@ -247,7 +247,7 @@ function sendImage(code) {
     var fileName = os.hostname() + '.jpg';
     
     var form = new FormData();
-    form.append('takeId', takeId);
+    //form.append('takeId', takeId);
     form.append('startTime', lastReceiveTime);
     form.append('cameraName', cameraName);
     form.append('fileName', fileName);
