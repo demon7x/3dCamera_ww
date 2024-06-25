@@ -121,15 +121,16 @@ socket.on('connect', function(){
     var heartbeatIntervalID = setInterval(heartbeat, 1000);
 });
 
+
+
 socket.on('take-photo', async function(data){
-    console.log("Taking a photo");
-    
+    console.log("Taking a photo with command: ", data.command);  // Log the command received
     const focusValue = await loadFocusValue();
     photoStartTime  = Date.now();
     lastReceiveTime = data.time;
     takeId          = data.takeId;
     
-    takeImage(focusValue);
+    takeImage(focusValue, data.command);  // Pass the command to the takeImage function
 });
 
 socket.on('update-software', function(data){
@@ -267,22 +268,33 @@ function sendImage(code) {
     });
 }
 
-function takeImage(focusValue) {
+function takeImage(focusValue, command) {  // Accept the command parameter
     var args = [
-        '-q', 100,     
-        '-o', getAbsoluteImagePath() ,
-        '--brightness',0.0
-
+        '-q', 100,
+        '-o', getAbsoluteImagePath(),
+        '--brightness', 0.0
     ];
 
     if (focusValue) {
         args.push('--lens-position', focusValue);
     }
+
+    // Process the command to customize the arguments
+    if (command) {
+        // Here you can parse the command and add corresponding arguments
+        // For example, if the command contains '--contrast', you can add it to args
+        // This is just an example, adjust according to your command structure
+        var commandArgs = command.split(' ');
+        args = args.concat(commandArgs);
+    }
+
     var imageProcess = spawn('libcamera-still', args);
-    setTimeout(function(){ imageProcess.kill()}, 10000);
-    
+    setTimeout(function() { imageProcess.kill() }, 10000);
+
     imageProcess.on('exit', sendImage);
 }
+
+
 
 function updateSoftware() {
     process.env.HOME = require('os').homedir();	
