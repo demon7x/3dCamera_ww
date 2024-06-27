@@ -275,9 +275,9 @@ function takeImage(focusValue, command) {  // Accept the command parameter
         //'--brightness', 0.0
     ];
 
-    if (focusValue) {
-        args.push('--lens-position', focusValue);
-    }
+    //if (focusValue) {
+    //    args.push('--lens-position', focusValue);
+    //}
 
     // Process the command to customize the arguments
     if (command) {
