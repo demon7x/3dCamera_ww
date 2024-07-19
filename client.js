@@ -125,12 +125,19 @@ socket.on('connect', function(){
 
 socket.on('take-photo', async function(data){
     console.log("Taking a photo with command: ", data.command);  // Log the command received
-    const focusValue = await loadFocusValue();
+    //const focusValue = await loadFocusValue();
+    const focusValue = null;
     photoStartTime  = Date.now();
     lastReceiveTime = data.time;
     takeId          = data.takeId;
     
-    takeImage(focusValue, data.command);  // Pass the command to the takeImage function
+    let customCommand = '';
+    if (data.customCommands && data.customCommands[socket.id]) {
+        customCommand = data.customCommands[socket.id];
+    }
+    console.log("Taking a photo with command: ", customCommand);
+    
+    takeImage(focusValue, data.command,customCommand);  // Pass the command to the takeImage function
 });
 
 socket.on('update-software', function(data){
@@ -268,7 +275,7 @@ function sendImage(code) {
     });
 }
 
-function takeImage(focusValue, command) {  // Accept the command parameter
+function takeImage(focusValue, command,customCommand) {  // Accept the command parameter
     var args = [
         '-q', 100,
         '-o', getAbsoluteImagePath(),
@@ -280,12 +287,9 @@ function takeImage(focusValue, command) {  // Accept the command parameter
     //}
 
     // Process the command to customize the arguments
-    if (command) {
-        // Here you can parse the command and add corresponding arguments
-        // For example, if the command contains '--contrast', you can add it to args
-        // This is just an example, adjust according to your command structure
-        var commandArgs = command.split(' ');
-        args = args.concat(commandArgs);
+    if (customCommand) {
+        var customCommandArgs = customCommand.split(' ');
+        args = args.concat(customCommandArgs);
     }
 
     var imageProcess = spawn('libcamera-still', args);
