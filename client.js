@@ -234,7 +234,7 @@ function getAbsoluteVideoPath() {
 
 function recordVideo(duration, framerate, customCommand, onComplete,data) {
     let args = [
-        '--codec','libav',
+        //'--codec','libav',
         '--width', 1920,
         '--height', 1080,
         '--camera', 0,
