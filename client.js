@@ -249,7 +249,6 @@ function recordVideo(duration, framerate, customCommand, onComplete) {
 
     // Spawn the libcamera-vid process
     var videoProcess = spawn('libcamera-vid', args);
-    var imageProcess = spawn('libcamera-still', args);
 
     // Forcefully kill the process after a timeout
     const timeout = parseInt(duration || 30000) + 5000; // Duration + 5 seconds buffer
