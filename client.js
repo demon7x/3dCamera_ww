@@ -235,10 +235,12 @@ function getAbsoluteVideoPath() {
 
 function recordVideo(duration, framerate, customCommand, onComplete) {
     let args = [
-        '-t', duration || 30000, // Default to 30 seconds
+        '-t', duration || 10000, // Default to 30 seconds
         '--framerate', framerate || 24, // Default to 24 fps
         '-o', getAbsoluteVideoPath()
     ];
+
+    console.log('Recording video with args:', args.join(' '));
 
     // Process the customCommand to customize the arguments
     if (customCommand) {
