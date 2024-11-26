@@ -247,7 +247,7 @@ function recordVideo(duration, framerate, customCommand, onComplete) {
     console.log('Recording video with args:', args.join(' '));
 
     process.env.HOME = require('os').homedir();	
-    childProcess = exec('cd ' + __dirname + '; libcamera-vid'+args.join(' '), function (error, stdout, stderr) {
+    childProcess = exec('cd ' + __dirname + '; libcamera-vid '+args.join(' '), function (error, stdout, stderr) {
         console.log('stdout: ' + stdout);
         console.log('stderr: ' + stderr);
         if (error !== null) {
