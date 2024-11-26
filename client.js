@@ -145,7 +145,7 @@ socket.on('take-video', (data) => {
     // 올바른 구조로 recordVideo 호출
     recordVideo({
         cameraId: data.cameraId,
-        duration: data.duration || 30000, // 기본 녹화 시간 30초
+        duration: 10000,
         framerate: data.framerate || 24, // 기본 프레임 속도 24fps
         takeId: data.takeId
     });
