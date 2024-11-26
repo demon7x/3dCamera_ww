@@ -109,8 +109,7 @@ function applyFocusValue(focusValue, callback) {
         if (typeof callback === 'function') {
             callback();
         }
-    });
-}
+    });}
 
 socket.on('connect', function(){
     console.log('A socket connection was made');
@@ -139,6 +138,19 @@ socket.on('take-photo', async function(data){
     
     takeImage(focusValue, data.command,customCommand);  // Pass the command to the takeImage function
 });
+
+socket.on('take-video', (data) => {
+    console.log(`Video recording requested for camera: ${data.cameraId}`);
+    
+    // 올바른 구조로 recordVideo 호출
+    recordVideo({
+        cameraId: data.cameraId,
+        duration: data.duration || 30000, // 기본 녹화 시간 30초
+        framerate: data.framerate || 24, // 기본 프레임 속도 24fps
+        takeId: data.takeId
+    });
+});
+
 
 socket.on('update-software', function(data){
     console.log("Updating software");
@@ -211,6 +223,57 @@ function heartbeat() {
 function getAbsoluteImagePath() {
     return path.join(__dirname, imagePath, imageName);
 }
+
+function getAbsoluteVideoPath() {
+    const videoDir = path.join(__dirname, 'videos');
+    if (!fs.existsSync(videoDir)) {
+        fs.mkdirSync(videoDir, { recursive: true });
+    }
+    const fileName = `video_${Date.now()}.h264`;
+    return path.join(videoDir, fileName);
+}
+
+function recordVideo(duration, framerate, customCommand, onComplete) {
+    let args = [
+        '-t', duration || 30000, // Default to 30 seconds
+        '--framerate', framerate || 24, // Default to 24 fps
+        '-o', getAbsoluteVideoPath()
+    ];
+
+    // Process the customCommand to customize the arguments
+    if (customCommand) {
+        const customCommandArgs = customCommand.split(' ');
+        args = args.concat(customCommandArgs);
+    }
+
+    // Spawn the libcamera-vid process
+    const videoProcess = spawn('libcamera-vid', args);
+    console.log('Recording started with args:', args.join(' '));
+
+    // Forcefully kill the process after a timeout
+    const timeout = parseInt(duration || 30000) + 5000; // Duration + 5 seconds buffer
+    setTimeout(() => {
+        videoProcess.kill('SIGINT');
+    }, timeout);
+
+    // Handle process completion
+    videoProcess.on('exit', (code) => {
+        console.log(`Recording process exited with code ${code}`);
+        if (onComplete) {
+            onComplete(getAbsoluteVideoPath(), code);
+        }
+    });
+
+    // Handle errors
+    videoProcess.on('error', (error) => {
+        console.error('Error during recording:', error);
+        if (onComplete) {
+            onComplete(null, error);
+        }
+    });
+}
+
+
 
 function lookupIp() {
     var ifaces = os.networkInterfaces();
