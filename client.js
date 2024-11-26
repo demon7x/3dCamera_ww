@@ -257,8 +257,8 @@ function recordVideo(duration, framerate, customCommand, onComplete) {
     }, timeout);
 
     // Handle process completion
-    videoProcess.on('exit', (code) => {
-        console.log(`Recording process exited with code ${code}`);
+    videoProcess.on('exit', (code,signal) => {
+        console.log(`Recording process exited with code ${code}, signal ${signal}`);
         if (onComplete) {
             onComplete(getAbsoluteVideoPath(), code);
         }
