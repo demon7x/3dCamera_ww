@@ -265,6 +265,7 @@ function recordVideo(duration, framerate, customCommand, onComplete,data) {
 
 function sendVideo(videoPath, takeId, cameraId) {
     // Check if the recording was successful
+    console.log('Sending video:', videoPath);
     if (!fs.existsSync(videoPath)) {
         socket.emit('recording-error', { takeId: takeId, cameraId: cameraId });
         return;
