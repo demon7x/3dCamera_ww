@@ -228,7 +228,7 @@ function getAbsoluteImagePath() {
 function getAbsoluteVideoPath() {
     const videoDir = path.join(__dirname, '/');
     console.log('Video directory:', videoDir);
-    const fileName = `video.h264`;
+    const fileName = `video.mp4`;
     return path.join(videoDir, fileName);
 }
 
