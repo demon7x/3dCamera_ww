@@ -239,38 +239,26 @@ function recordVideo(duration, framerate, customCommand, onComplete) {
         '-o', getAbsoluteVideoPath()
     ];
 
-    console.log('Recording video with args:', args.join(' '));
-
-    // Process the customCommand to customize the arguments
     if (customCommand) {
         const customCommandArgs = customCommand.split(' ');
         args = args.concat(customCommandArgs);
     }
 
+    console.log('Recording video with args:', args.join(' '));
+
+    process.env.HOME = require('os').homedir();	
+    childProcess = exec('cd ' + __dirname + '; libcamera-vid'+args.join(' '), function (error, stdout, stderr) {
+        console.log('stdout: ' + stdout);
+        console.log('stderr: ' + stderr);
+        if (error !== null) {
+            console.log('exec error: ' + error);
+        }
+        console.log("recode complete");
+        process.exit();
+    });
+    // Process the customCommand to customize the arguments
+
     // Spawn the libcamera-vid process
-    var videoProcess = spawn('libcamera-vid', args);
-
-    // Forcefully kill the process after a timeout
-    const timeout = parseInt(duration || 30000) + 5000; // Duration + 5 seconds buffer
-    setTimeout(() => {
-        videoProcess.kill('SIGINT');
-    }, timeout);
-
-    // Handle process completion
-    videoProcess.on('exit', (code,signal) => {
-        console.log(`Recording process exited with code ${code}, signal ${signal}`);
-        if (onComplete) {
-            onComplete(getAbsoluteVideoPath(), code);
-        }
-    });
-
-    // Handle errors
-    videoProcess.on('error', (error) => {
-        console.error('Error during recording:', error);
-        if (onComplete) {
-            onComplete(null, error);
-        }
-    });
 }
 
 
