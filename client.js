@@ -140,7 +140,7 @@ socket.on('take-photo', async function(data){
 });
 
 socket.on('take-video', (data) => {
-    console.log(`Video recording requested for camera: ${data.cameraId}`);
+    console.log(`Video recording requested for camera: ${data}`);
     
     // 올바른 구조로 recordVideo 호출
     recordVideo({
@@ -250,8 +250,8 @@ function recordVideo(duration, framerate, customCommand, onComplete) {
     }
 
     // Spawn the libcamera-vid process
-    const videoProcess = spawn('libcamera-vid', args);
-    console.log('Recording started with args:', args.join(' '));
+    var videoProcess = spawn('libcamera-vid', args);
+    var imageProcess = spawn('libcamera-still', args);
 
     // Forcefully kill the process after a timeout
     const timeout = parseInt(duration || 30000) + 5000; // Duration + 5 seconds buffer
