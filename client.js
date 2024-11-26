@@ -225,12 +225,9 @@ function getAbsoluteImagePath() {
 }
 
 function getAbsoluteVideoPath() {
-    const videoDir = path.join(__dirname, 'videos');
+    const videoDir = path.join(__dirname, '/');
     console.log('Video directory:', videoDir);
-    if (!fs.existsSync(videoDir)) {
-        fs.mkdirSync(videoDir, { recursive: true });
-    }
-    const fileName = `video_${Date.now()}.h264`;
+    const fileName = `video.h264`;
     return path.join(videoDir, fileName);
 }
 
