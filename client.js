@@ -226,6 +226,7 @@ function getAbsoluteImagePath() {
 
 function getAbsoluteVideoPath() {
     const videoDir = path.join(__dirname, 'videos');
+    console.log('Video directory:', videoDir);
     if (!fs.existsSync(videoDir)) {
         fs.mkdirSync(videoDir, { recursive: true });
     }
