@@ -117,7 +117,7 @@ socket.on('connect', function(){
     socket.emit('camera-online', {name: cameraName, ipAddress: ipAddress, version: version});
     
     // Setup a regular heartbeat interval
-    var heartbeatIntervalID = setInterval(heartbeat, 30000);
+    var heartbeatIntervalID = setInterval(heartbeat, 3000);
 });
 
 
@@ -148,6 +148,7 @@ socket.on('take-video', (data) => {
         duration: 10000,
         framerate: data.framerate || 24, // 기본 프레임 속도 24fps
         takeId: data.takeId
+        data: data
     });
 });
 
@@ -231,7 +232,7 @@ function getAbsoluteVideoPath() {
     return path.join(videoDir, fileName);
 }
 
-function recordVideo(duration, framerate, customCommand, onComplete) {
+function recordVideo(duration, framerate, customCommand, onComplete,data) {
     let args = [
         '--camera', 0,
         '-t', 10000, // Default to 30 seconds
@@ -254,11 +255,55 @@ function recordVideo(duration, framerate, customCommand, onComplete) {
             console.log('exec error: ' + error);
         }
         console.log("recode complete");
-        process.exit();
+        process.exit(sendVideo(getAbsoluteVideoPath(), data.takeId, data.cameraId));
     });
     // Process the customCommand to customize the arguments
 
     // Spawn the libcamera-vid process
+}
+
+
+function sendVideo(videoPath, takeId, cameraId) {
+    // Check if the recording was successful
+    if (!fs.existsSync(videoPath)) {
+        socket.emit('recording-error', { takeId: takeId, cameraId: cameraId });
+        return;
+    }
+
+    socket.emit('sending-video', { takeId: takeId });
+
+    const fileName = path.basename(videoPath); // Extract the file name from the path
+    const form = new FormData();
+
+    form.append('takeId', takeId);
+    form.append('cameraId', cameraId);
+    form.append('fileName', fileName);
+    form.append('video', fs.createReadStream(videoPath));
+
+    // Upload the video to the server
+    form.submit(httpServer + '/new-video', function (err, res) {
+        if (err) {
+            console.error("Error uploading video:", err);
+            socket.emit('recording-error', { takeId: takeId, cameraId: cameraId });
+        } else {
+            console.log("Video uploaded successfully");
+        }
+
+        // Delete the temporary video file
+        fs.unlink(videoPath, function () {
+            console.log("Temporary video file deleted:", videoPath);
+        });
+
+        if (res) res.resume();
+    });
+
+    // Emit event with metadata
+    socket.emit('new-video', {
+        takeId: takeId,
+        cameraId: cameraId,
+        fileName: fileName,
+        time: Date.now()
+    });
 }
 
 
@@ -325,6 +370,9 @@ function sendImage(code) {
         res.resume();
     });
 }
+
+
+
 
 function takeImage(focusValue, command,customCommand) {  // Accept the command parameter
     var args = [
