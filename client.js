@@ -147,7 +147,7 @@ socket.on('take-video', (data) => {
         cameraId: data.cameraId,
         duration: 10000,
         framerate: data.framerate || 24, // 기본 프레임 속도 24fps
-        takeId: data.takeId
+        takeId: data.takeId,
         data: data
     });
 });
