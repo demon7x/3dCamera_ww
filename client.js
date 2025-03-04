@@ -237,7 +237,7 @@ function recordVideo(duration, framerate, customCommand,takeId) {
         '--width', 1920,
         '--height', 1080,
         '--camera', 0,
-        '-b', 9000000,
+        '-b', 18000000,
         '-t', 10000, // Default to 30 seconds
         '--framerate', framerate || 24, // Default to 24 fps
         '-o', getAbsoluteVideoPath()
