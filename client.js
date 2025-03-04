@@ -258,6 +258,7 @@ function recordVideo(duration, framerate, customCommand, onComplete,data) {
             console.log('exec error: ' + error);
         }
         console.log("recode complete");
+        console.log(data);
         process.exit(sendVideo(getAbsoluteVideoPath(), data.takeId, data.cameraId));
     });
     // Process the customCommand to customize the arguments
