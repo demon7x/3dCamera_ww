@@ -280,7 +280,7 @@ function sendVideo(videoPath, takeId,cameraId) {
     const form = new FormData();
     console.log('takeId:', takeId);
     //form.append('takeId', takeId);
-    form.append('cameraId', cameraId);
+    form.append('cameraId', guid());
     form.append('fileName', fileName);
     form.append('video', fs.createReadStream(videoPath));
 
