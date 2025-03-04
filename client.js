@@ -117,7 +117,7 @@ socket.on('connect', function(){
     socket.emit('camera-online', {name: cameraName, ipAddress: ipAddress, version: version});
     
     // Setup a regular heartbeat interval
-    var heartbeatIntervalID = setInterval(heartbeat, 3000);
+    var heartbeatIntervalID = setInterval(heartbeat, 50000);
 });
 
 
