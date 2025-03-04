@@ -284,7 +284,7 @@ function sendVideo(videoPath, takeId,cameraId) {
     form.append('cameraId', takeId);
     form.append('fileName', fileName);
     form.append('video', fs.createReadStream(videoPath));
-
+    console.log('takeIddone:', takeId);
     // Upload the video to the server
     form.submit(httpServer + '/new-video', function (err, res) {
         if (err) {
