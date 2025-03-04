@@ -233,11 +233,12 @@ function getAbsoluteVideoPath() {
 
 function recordVideo(duration, framerate, customCommand,takeId) {
     let args = [
-        //'--codec','libav',
+        '--codec','mjpeg',
         '--width', 1920,
         '--height', 1080,
         '--camera', 0,
-        '-b', 18000000,
+        '-q', 90,
+        //'-b', 18000000,
         '-t', 10000, // Default to 30 seconds
         '--framerate', framerate || 24, // Default to 24 fps
         '-o', getAbsoluteVideoPath()
