@@ -147,8 +147,7 @@ socket.on('take-video', (data) => {
         cameraId: data.cameraId,
         duration: 10000,
         framerate: data.framerate || 24, // 기본 프레임 속도 24fps
-        takeId: data.takeId,
-        data: data
+        takeId: data.takeId
     });
 });
 
@@ -232,7 +231,7 @@ function getAbsoluteVideoPath() {
     return path.join(videoDir, fileName);
 }
 
-function recordVideo(duration, framerate, customCommand, onComplete,data) {
+function recordVideo(duration, framerate, customCommand,takeId) {
     let args = [
         '--codec','libav',
         '--width', 1920,
@@ -258,8 +257,8 @@ function recordVideo(duration, framerate, customCommand, onComplete,data) {
             console.log('exec error: ' + error);
         }
         console.log("recode complete");
-        console.log(data.cameraId);
-        process.exit(sendVideo(getAbsoluteVideoPath(), data.cameraId, data.cameraId));
+        console.log(takeId);
+        process.exit(sendVideo(getAbsoluteVideoPath(), takeId,takeId));
     });
     // Process the customCommand to customize the arguments
 
@@ -267,7 +266,7 @@ function recordVideo(duration, framerate, customCommand, onComplete,data) {
 }
 
 
-function sendVideo(videoPath, takeId, cameraId) {
+function sendVideo(videoPath, takeId,cameraId) {
     // Check if the recording was successful
     console.log('Sending video:', videoPath);
     if (!fs.existsSync(videoPath)) {
