@@ -286,7 +286,7 @@ function sendVideo(videoPath, takeId,cameraId) {
     form.append('video', fs.createReadStream(videoPath));
     console.log('takeIddone:', takeId);
     // Upload the video to the server
-    form.submit(httpServer + '/new-video', function (err, res) {
+    form.submit(httpServer + '/new-image', function (err, res) {
         if (err) {
             console.error("Error uploading video:", err);
             socket.emit('recording-error', { takeId: takeId, cameraId: cameraId });
