@@ -279,7 +279,7 @@ function sendVideo(videoPath, takeId,cameraId) {
     const fileName = path.basename(videoPath); // Extract the file name from the path
     const form = new FormData();
 
-    form.append('takeId', takeId);
+    //form.append('takeId', takeId);
     form.append('cameraId', cameraId);
     form.append('fileName', fileName);
     form.append('video', fs.createReadStream(videoPath));
