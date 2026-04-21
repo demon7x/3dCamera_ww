@@ -47,6 +47,7 @@ var hostName   = null;
 var previewProcess;
 var recordingStatus = 'idle';
 var gitCommit = 'unknown';
+var currentProject = null;
 
 function fetchGitCommit() {
     try {
@@ -154,25 +155,26 @@ socket.on('connect', function(){
 
 
 socket.on('take-photo', async function(data){
-    console.log("Taking a photo with command: ", data.command);  // Log the command received
-    //const focusValue = await loadFocusValue();
+    console.log("Taking a photo, project=", data.project);
     const focusValue = null;
     photoStartTime  = Date.now();
     lastReceiveTime = data.time;
     takeId          = data.takeId;
-    
+    currentProject  = data.project || null;
+
     let customCommand = '';
     if (data.customCommands && data.customCommands[socket.id]) {
         customCommand = data.customCommands[socket.id];
     }
     console.log("Taking a photo with command: ", customCommand);
-    
-    takeImage(focusValue, data.command,customCommand);  // Pass the command to the takeImage function
+
+    takeImage(focusValue, data.command, customCommand);
 });
 
 socket.on('take-video', (data) => {
     const msg = data || {};
     console.log('Video recording requested, payload:', msg);
+    currentProject = msg.project || null;
 
     const opts = {
         cameraId: msg.takeId,
@@ -255,10 +257,16 @@ function cleanupPreviewProcess() {
 });
 process.on('exit', cleanupPreviewProcess);
 
-function spawnPreview(clientSocketId) {
-    console.log("Starting preview for clientSocketId=", clientSocketId);
+function spawnPreview(clientSocketId, previewOpts) {
+    console.log("Starting preview for clientSocketId=", clientSocketId, "opts=", previewOpts);
+    previewOpts = previewOpts || {};
 
-    previewProcess = spawn('python3', ['camera_stream.py'], { cwd: __dirname });
+    var args = ['camera_stream.py'];
+    if (previewOpts.width)   args.push('--width',   String(previewOpts.width));
+    if (previewOpts.height)  args.push('--height',  String(previewOpts.height));
+    if (previewOpts.quality) args.push('--quality', String(previewOpts.quality));
+
+    previewProcess = spawn('python3', args, { cwd: __dirname });
     var urlEmitted = false;
 
     function emitPreviewUrl() {
@@ -297,12 +305,17 @@ function spawnPreview(clientSocketId) {
 
 socket.on('preview', function(data) {
     var clientSocketId = data && data.clientSocketId;
+    var previewOpts = {
+        width:   (data && data.width)   || 1280,
+        height:  (data && data.height)  || 720,
+        quality: (data && data.quality) || 85
+    };
 
     if (previewProcess && previewProcess.exitCode === null) {
         // Wait for old process to actually release the camera before spawning a new one.
         var oldProc = previewProcess;
         oldProc.once('close', function () {
-            setTimeout(function () { spawnPreview(clientSocketId); }, 250);
+            setTimeout(function () { spawnPreview(clientSocketId, previewOpts); }, 250);
         });
         try { oldProc.kill('SIGTERM'); } catch (e) {}
         // Hard fallback: if it doesn't die in 2s, SIGKILL it
@@ -314,7 +327,7 @@ socket.on('preview', function(data) {
         return;
     }
 
-    spawnPreview(clientSocketId);
+    spawnPreview(clientSocketId, previewOpts);
 });
 
 socket.on('stop-preview', function() {
@@ -401,6 +414,7 @@ function sendVideo(videoPath, takeId, startTime) {
     form.append('startTime', startTime || Date.now());
     form.append('cameraName', cameraName || hostName || '');
     form.append('hostName', hostName || '');
+    form.append('project', currentProject || '');
     form.append('fileName', fileName);
     form.append('video', fs.createReadStream(videoPath));
 
@@ -488,6 +502,7 @@ function sendImage(code, signal, stderrText, timedOut) {
     var form = new FormData();
     form.append('startTime', lastReceiveTime);
     form.append('cameraName', cameraName);
+    form.append('project', currentProject || '');
     form.append('fileName', fileName);
     form.append('image', fs.createReadStream(getAbsoluteImagePath()));
 
