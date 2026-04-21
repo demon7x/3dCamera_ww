@@ -213,6 +213,23 @@ socket.on('update-name', function(data){
     });
 });
 
+function cleanupPreviewProcess() {
+    if (previewProcess && previewProcess.exitCode === null) {
+        try { previewProcess.kill('SIGTERM'); } catch (e) {}
+    }
+}
+
+// Propagate shutdown to the python preview child so supervisor restarts
+// (or any SIGTERM) don't leave it orphaned holding the camera.
+['SIGTERM', 'SIGINT', 'SIGHUP'].forEach(function (sig) {
+    process.on(sig, function () {
+        console.log('Got ' + sig + ', cleaning up preview child');
+        cleanupPreviewProcess();
+        setTimeout(function () { process.exit(0); }, 300);
+    });
+});
+process.on('exit', cleanupPreviewProcess);
+
 function spawnPreview(clientSocketId) {
     console.log("Starting preview for clientSocketId=", clientSocketId);
 
