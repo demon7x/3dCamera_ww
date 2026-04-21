@@ -7,14 +7,77 @@ version that wrote frames to stdout instead of the client socket.
 """
 import argparse
 import io
+import json
 import signal
 import sys
 import threading
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from picamera2 import Picamera2
 from picamera2.encoders import MJPEGEncoder
 from picamera2.outputs import FileOutput
+
+
+picam2 = None   # module-level so HTTP handlers can call set_controls on it
+
+
+def apply_controls(payload):
+    """Translate a flat dict of sensible keys into picamera2 Controls and apply.
+
+    Returns the dict of controls actually applied.
+    """
+    if picam2 is None:
+        return {}
+    controls = {}
+
+    def to_float(v):
+        try: return float(v)
+        except Exception: return None
+    def to_int(v):
+        try: return int(float(v))
+        except Exception: return None
+
+    # Auto-exposure toggle ('auto' | 'manual' | true/false)
+    if 'ae' in payload:
+        v = str(payload['ae']).lower()
+        controls['AeEnable'] = v in ('1', 'true', 'on', 'auto', 'yes')
+    if 'exposure' in payload:
+        n = to_int(payload['exposure'])
+        if n is not None: controls['ExposureTime'] = n
+    if 'gain' in payload:
+        v = to_float(payload['gain'])
+        if v is not None: controls['AnalogueGain'] = v
+    if 'awb' in payload:
+        # 0 auto / 1 tungsten / 2 fluorescent / 3 indoor / 4 daylight / 5 cloudy
+        n = to_int(payload['awb'])
+        if n is not None:
+            controls['AwbEnable'] = True
+            controls['AwbMode'] = n
+    if 'brightness' in payload:
+        v = to_float(payload['brightness'])
+        if v is not None: controls['Brightness'] = v
+    if 'contrast' in payload:
+        v = to_float(payload['contrast'])
+        if v is not None: controls['Contrast'] = v
+    if 'saturation' in payload:
+        v = to_float(payload['saturation'])
+        if v is not None: controls['Saturation'] = v
+    if 'sharpness' in payload:
+        v = to_float(payload['sharpness'])
+        if v is not None: controls['Sharpness'] = v
+    if 'focus' in payload:
+        v = to_float(payload['focus'])
+        if v is not None:
+            controls['AfMode'] = 0          # manual
+            controls['LensPosition'] = v
+
+    if controls:
+        try:
+            picam2.set_controls(controls)
+        except Exception as e:
+            sys.stderr.write('[controls] set_controls error: %s (controls=%s)\n' % (e, controls))
+    return controls
 
 
 def parse_args():
@@ -61,6 +124,40 @@ class StreamingHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         sys.stderr.write("[preview http] %s\n" % (fmt % args))
 
+    def _send_cors(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self._send_cors()
+        self.end_headers()
+
+    def do_POST(self):
+        path = self.path.split('?', 1)[0]
+        if path != '/controls':
+            self.send_error(404)
+            return
+        try:
+            length = int(self.headers.get('Content-Length', 0) or 0)
+            raw = self.rfile.read(length).decode('utf-8') if length else ''
+            if raw.lstrip().startswith('{'):
+                payload = json.loads(raw)
+            else:
+                payload = dict(urllib.parse.parse_qsl(raw))
+            applied = apply_controls(payload)
+            body = json.dumps({'ok': True, 'applied': applied}).encode()
+            self.send_response(200)
+            self._send_cors()
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as e:
+            sys.stderr.write('[controls] POST error: %s\n' % e)
+            self.send_error(500, str(e))
+
     def do_GET(self):
         # Strip query string so cache-busters like "?t=1234" still match
         path = self.path.split('?', 1)[0]
@@ -100,7 +197,7 @@ class StreamingServer(ThreadingHTTPServer):
 if __name__ == '__main__':
     cli = parse_args()
     output = StreamingOutput()
-    picam2 = Picamera2()
+    picam2 = Picamera2()  # module-level, shared with apply_controls()
     picam2.configure(picam2.create_video_configuration(main={"size": (cli.width, cli.height)}))
 
     encoder = MJPEGEncoder()
