@@ -48,6 +48,7 @@ var previewProcess;
 var recordingStatus = 'idle';
 var gitCommit = 'unknown';
 var currentProject = null;
+var currentConfig = {};   // {photoArgs, videoArgs, previewSize, previewQuality}
 
 function fetchGitCommit() {
     try {
@@ -176,25 +177,17 @@ socket.on('take-video', (data) => {
     console.log('Video recording requested, payload:', msg);
     currentProject = msg.project || null;
 
-    const opts = {
+    // Spawn immediately so the camera + encoder have time to warm up; the
+    // scheduled SIGUSR1 inside recordVideo handles the actual start timing.
+    recordVideo({
         cameraId: msg.takeId,
         duration: msg.duration || 10000,
         framerate: msg.framerate || 24,
         customCommand: (msg.customCommands && msg.customCommands[socket.id]) || null,
         takeId: msg.takeId,
-        startTime: msg.time || Date.now()
-    };
-
-    const delay = Math.max(0, (msg.startAt || 0) - Date.now());
-    if (delay > 0) {
-        console.log('[sync] scheduled record start in ' + delay + 'ms');
-        setTimeout(function () { recordVideo(opts); }, delay);
-    } else {
-        if (msg.startAt) {
-            console.warn('[sync] late arrival, starting immediately. clock skew or network lag >' + Math.abs((msg.startAt || 0) - Date.now()) + 'ms');
-        }
-        recordVideo(opts);
-    }
+        startTime: msg.time || Date.now(),
+        startAt: msg.startAt || (Date.now() + 600)
+    });
 });
 
 
@@ -305,10 +298,20 @@ function spawnPreview(clientSocketId, previewOpts) {
 
 socket.on('preview', function(data) {
     var clientSocketId = data && data.clientSocketId;
+
+    // Resolve preview size/quality with this priority:
+    //   explicit event values > per-camera stored config > defaults
+    var sz = (currentConfig && currentConfig.previewSize) || '';
+    var cfgW = 0, cfgH = 0;
+    if (sz && sz.indexOf('x') > 0) {
+        var p = sz.split('x');
+        cfgW = parseInt(p[0], 10) || 0;
+        cfgH = parseInt(p[1], 10) || 0;
+    }
     var previewOpts = {
-        width:   (data && data.width)   || 1280,
-        height:  (data && data.height)  || 720,
-        quality: (data && data.quality) || 85
+        width:   (data && data.width)   || cfgW || 1280,
+        height:  (data && data.height)  || cfgH || 720,
+        quality: (data && data.quality) || (currentConfig && currentConfig.previewQuality) || 85
     };
 
     if (previewProcess && previewProcess.exitCode === null) {
@@ -342,6 +345,13 @@ socket.on('update-focus', function(data) {
     saveFocusValue(data.focusValue);
 });
 
+// Server pushes the stored per-camera config on (re)connect and on save.
+socket.on('apply-config', function (cfg) {
+    if (!cfg || typeof cfg !== 'object') return;
+    currentConfig = cfg;
+    console.log('[config] applied:', JSON.stringify(cfg));
+});
+
 function heartbeat() {
     if (ipAddress == null) {
         lookupIp();
@@ -360,39 +370,79 @@ function getAbsoluteVideoPath() {
     return path.join(videoDir, fileName);
 }
 
+// Signal-based record: pre-warm libcamera-vid with --signal so the camera
+// and encoder are already running; at the scheduled wall-clock instant send
+// SIGUSR1 to toggle recording on. This collapses the startup variance
+// (typically 200–500 ms) into a signal-delivery latency of well under 5 ms,
+// which is the best software-only sync we can achieve without GPIO triggers.
 function recordVideo(opts) {
-    const { duration, framerate, customCommand, takeId, startTime } = opts || {};
-    // libav codec → libcamera-apps uses ffmpeg as muxer, producing a real MP4
-    // (default h264 codec writes only a raw .h264 elementary stream which
-    // browsers / Finder / QuickTime can't play even with .mp4 extension).
-    // Container is inferred from the output filename extension.
+    const { duration, framerate, customCommand, takeId, startTime, startAt } = opts || {};
+
     let args = [
-        '--codec', 'libav',
+        '--signal',             // toggle recording via SIGUSR1, exit on SIGUSR2
+        '--codec', 'libav',     // produce real MP4 container (not raw H.264 ES)
         '--width', 1920,
         '--height', 1080,
         '--camera', 0,
         '-b', 20000000,
-        '-t', duration || 10000,
+        '-t', 0,                // run until we say so
         '--framerate', framerate || 24,
         '-o', getAbsoluteVideoPath()
     ];
+    args = args.concat(splitArgs(currentConfig && currentConfig.videoArgs));
+    args = args.concat(splitArgs(customCommand));
 
-    if (customCommand) {
-        const customCommandArgs = customCommand.split(' ');
-        args = args.concat(customCommandArgs);
-    }
-
-    console.log('Recording video with args:', args.join(' '));
+    console.log('Pre-warming libcamera-vid args:', args.join(' '));
 
     recordingStatus = 'recording';
     process.env.HOME = require('os').homedir();
-    childProcess = exec('cd ' + __dirname + '; libcamera-vid ' + args.join(' '), function (error, stdout, stderr) {
-        console.log('stdout: ' + stdout);
-        console.log('stderr: ' + stderr);
-        if (error !== null) {
-            console.log('exec error: ' + error);
-        }
-        console.log("record complete, takeId:", takeId);
+
+    var proc = spawn('libcamera-vid', args, { cwd: __dirname });
+    var stderrBuf = '';
+    proc.stderr.on('data', function (d) { stderrBuf += d.toString(); });
+    proc.on('error', function (err) {
+        console.error('[record] spawn error:', err.message);
+        recordingStatus = 'idle';
+    });
+
+    var triggered = false;
+    function triggerStart() {
+        if (triggered) return;
+        triggered = true;
+        var actualStart = Date.now();
+        try { proc.kill('SIGUSR1'); } catch (e) { console.error('SIGUSR1 failed:', e); }
+        var skew = actualStart - (startAt || actualStart);
+        console.log('[sync] SIGUSR1 sent actual=' + actualStart + ' target=' + startAt + ' skew=' + skew + 'ms');
+        socket.emit('video-started', {
+            cameraName: cameraName,
+            hostName: hostName,
+            startAt: startAt,
+            actualStart: actualStart,
+            skew: skew,
+            takeId: takeId
+        });
+
+        setTimeout(function () {
+            // Toggle recording off with another SIGUSR1, then quit cleanly.
+            try { proc.kill('SIGUSR1'); } catch (e) {}
+            setTimeout(function () {
+                try { proc.kill('SIGUSR2'); } catch (e) {}
+                setTimeout(function () {
+                    if (proc.exitCode === null) { try { proc.kill('SIGTERM'); } catch (e) {} }
+                }, 1000);
+            }, 500);
+        }, duration || 10000);
+    }
+
+    var now = Date.now();
+    // Guarantee at least 500 ms of warmup so libcamera-vid has installed its
+    // signal handler before we fire.
+    var delay = Math.max(500, (startAt || now) - now);
+    setTimeout(triggerStart, delay);
+
+    proc.on('exit', function (code, signal) {
+        console.log('libcamera-vid exited code=' + code + ' signal=' + signal);
+        if (stderrBuf) console.log('[record stderr tail]', stderrBuf.split('\n').slice(-5).join('\n'));
         sendVideo(getAbsoluteVideoPath(), takeId, startTime);
         recordingStatus = 'idle';
     });
@@ -524,22 +574,21 @@ function sendImage(code, signal, stderrText, timedOut) {
 
 
 
-function takeImage(focusValue, command,customCommand) {  // Accept the command parameter
+function splitArgs(s) {
+    if (!s) return [];
+    return String(s).trim().split(/\s+/).filter(Boolean);
+}
+
+function takeImage(focusValue, command, customCommand) {
     var args = [
         '-q', 100,
-        '-o', getAbsoluteImagePath(),
-        //'--brightness', 0.0
+        '-o', getAbsoluteImagePath()
     ];
 
-    //if (focusValue) {
-    //    args.push('--lens-position', focusValue);
-    //}
-
-    // Process the command to customize the arguments
-    if (customCommand) {
-        var customCommandArgs = customCommand.split(' ');
-        args = args.concat(customCommandArgs);
-    }
+    // Persistent per-camera photo args from central config.
+    args = args.concat(splitArgs(currentConfig && currentConfig.photoArgs));
+    // Per-shot custom command from the web UI cell.
+    args = args.concat(splitArgs(customCommand));
 
     var imageProcess = spawn('libcamera-still', args);
     var stderrBuf = '';
