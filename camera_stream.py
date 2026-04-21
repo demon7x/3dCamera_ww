@@ -5,6 +5,7 @@ Serves a multipart/x-mixed-replace MJPEG stream on http://<pi>:8888/ that
 can be embedded directly in a browser <img> tag. Replaces the broken raw-TCP
 version that wrote frames to stdout instead of the client socket.
 """
+import io
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -14,15 +15,24 @@ from picamera2.encoders import MJPEGEncoder
 from picamera2.outputs import FileOutput
 
 
-class StreamingOutput:
+class StreamingOutput(io.BufferedIOBase):
+    """File-like sink for the MJPEG encoder. picamera2's FileOutput
+    validates ``isinstance(file, io.BufferedIOBase)`` so the subclass is
+    mandatory — a plain class with .write() is rejected."""
+
     def __init__(self):
+        super().__init__()
         self.frame = None
         self.condition = threading.Condition()
+
+    def writable(self):
+        return True
 
     def write(self, buf):
         with self.condition:
             self.frame = bytes(buf)
             self.condition.notify_all()
+        return len(buf)
 
 
 class StreamingHandler(BaseHTTPRequestHandler):
