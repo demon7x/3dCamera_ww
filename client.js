@@ -46,12 +46,24 @@ var ipAddress  = null;
 var hostName   = null;
 var previewProcess;
 var recordingStatus = 'idle';
+var gitCommit = 'unknown';
+
+function fetchGitCommit() {
+    exec('cd ' + __dirname + '; git rev-parse --short HEAD', function (err, stdout) {
+        if (!err && stdout) {
+            gitCommit = stdout.trim();
+            console.log('Running commit:', gitCommit);
+        }
+    });
+}
 
 function boot() {
     console.log("Starting");
-    
+
     hostName = os.hostname();
-    
+
+    fetchGitCommit();
+
     // Lookup our IP address
     lookupIp();
     
@@ -115,7 +127,7 @@ function applyFocusValue(focusValue, callback) {
 socket.on('connect', function(){
     console.log('A socket connection was made');
     
-    socket.emit('camera-online', {name: cameraName, ipAddress: ipAddress, version: version, status: recordingStatus});
+    socket.emit('camera-online', {name: cameraName, ipAddress: ipAddress, version: version, commit: gitCommit, status: recordingStatus});
 
     // Setup a regular heartbeat interval
     var heartbeatIntervalID = setInterval(heartbeat, 3000);
@@ -219,7 +231,7 @@ function heartbeat() {
     if (ipAddress == null) {
         lookupIp();
     }
-    socket.emit('camera-online', {name: cameraName, ipAddress: ipAddress, hostName: hostName, version: version, updateInProgress: updateInProgress, status: recordingStatus});
+    socket.emit('camera-online', {name: cameraName, ipAddress: ipAddress, hostName: hostName, version: version, commit: gitCommit, updateInProgress: updateInProgress, status: recordingStatus});
 }
 
 function getAbsoluteImagePath() {
