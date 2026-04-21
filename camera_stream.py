@@ -6,6 +6,7 @@ can be embedded directly in a browser <img> tag. Replaces the broken raw-TCP
 version that wrote frames to stdout instead of the client socket.
 """
 import io
+import signal
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -13,6 +14,16 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from picamera2 import Picamera2
 from picamera2.encoders import MJPEGEncoder
 from picamera2.outputs import FileOutput
+
+
+def _handle_sigterm(signum, frame):
+    # Raise SystemExit so the 'finally' block gets to call stop_recording()
+    # and release the camera for the next preview session.
+    sys.stderr.write('[preview] SIGTERM received, shutting down\n')
+    raise SystemExit(0)
+
+
+signal.signal(signal.SIGTERM, _handle_sigterm)
 
 
 class StreamingOutput(io.BufferedIOBase):
@@ -88,5 +99,15 @@ if __name__ == '__main__':
     try:
         server = StreamingServer(('0.0.0.0', 8888), StreamingHandler)
         server.serve_forever()
+    except (KeyboardInterrupt, SystemExit):
+        pass
     finally:
-        picam2.stop_recording()
+        try:
+            picam2.stop_recording()
+        except Exception as e:
+            sys.stderr.write('[preview] stop_recording error: %s\n' % e)
+        try:
+            picam2.close()
+        except Exception:
+            pass
+        sys.stderr.write('[preview] shutdown complete\n')

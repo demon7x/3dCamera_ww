@@ -213,13 +213,8 @@ socket.on('update-name', function(data){
     });
 });
 
-socket.on('preview', function(data) {
-    var clientSocketId = data && data.clientSocketId;
+function spawnPreview(clientSocketId) {
     console.log("Starting preview for clientSocketId=", clientSocketId);
-
-    if (previewProcess) {
-        try { previewProcess.kill(); } catch (e) {}
-    }
 
     previewProcess = spawn('python3', ['camera_stream.py'], { cwd: __dirname });
     var urlEmitted = false;
@@ -251,12 +246,33 @@ socket.on('preview', function(data) {
 
     previewProcess.on('close', function (code) {
         console.log('preview process exited with code', code);
-        urlEmitted = false;
     });
 
     // Fallback: if stdout readiness line is missed, still emit URL after 2s
     // so the browser <img> can at least attempt to connect.
     setTimeout(emitPreviewUrl, 2000);
+}
+
+socket.on('preview', function(data) {
+    var clientSocketId = data && data.clientSocketId;
+
+    if (previewProcess && previewProcess.exitCode === null) {
+        // Wait for old process to actually release the camera before spawning a new one.
+        var oldProc = previewProcess;
+        oldProc.once('close', function () {
+            setTimeout(function () { spawnPreview(clientSocketId); }, 250);
+        });
+        try { oldProc.kill('SIGTERM'); } catch (e) {}
+        // Hard fallback: if it doesn't die in 2s, SIGKILL it
+        setTimeout(function () {
+            if (oldProc.exitCode === null) {
+                try { oldProc.kill('SIGKILL'); } catch (e) {}
+            }
+        }, 2000);
+        return;
+    }
+
+    spawnPreview(clientSocketId);
 });
 
 socket.on('stop-preview', function() {
