@@ -49,6 +49,30 @@ var recordingStatus = 'idle';
 var gitCommit = 'unknown';
 var currentProject = null;
 var currentConfig = {};   // {photoArgs, videoArgs, previewSize, previewQuality}
+var ntpState = { synchronized: null, offsetMs: null, server: null };
+
+function refreshNtpState() {
+    // timedatectl show -p NTPSynchronized --value -> "yes" | "no"
+    exec('timedatectl show -p NTPSynchronized --value 2>/dev/null', function (err, stdout) {
+        if (!err && stdout) {
+            ntpState.synchronized = stdout.trim() === 'yes';
+        }
+    });
+    // chrony or systemd-timesyncd offset in ms (best-effort; ok if missing)
+    exec("chronyc tracking 2>/dev/null | awk -F': +' '/System time/ {print $2}'", function (err, stdout) {
+        if (!err && stdout) {
+            var m = stdout.match(/([-\d.]+)\s*seconds/);
+            if (m) ntpState.offsetMs = Math.round(parseFloat(m[1]) * 1000);
+        }
+    });
+    exec("timedatectl show -p NTP --value 2>/dev/null; echo ''; grep -E '^(NTP|FallbackNTP)=' /etc/systemd/timesyncd.conf 2>/dev/null | head -1", function (err, stdout) {
+        if (!err && stdout) {
+            var line = stdout.split('\n').filter(Boolean).pop() || '';
+            var m = line.replace(/^NTP=|^FallbackNTP=/, '').trim();
+            if (m) ntpState.server = m.split(/\s+/)[0];
+        }
+    });
+}
 
 function fetchGitCommit() {
     try {
@@ -83,6 +107,8 @@ function boot() {
     hostName = os.hostname();
 
     fetchGitCommit();
+    refreshNtpState();
+    setInterval(refreshNtpState, 30000);
 
     // Lookup our IP address
     lookupIp();
@@ -197,6 +223,35 @@ socket.on('update-software', function(data){
     updateInProgress = true;
 
     updateSoftware();
+});
+
+// Remote NTP management so 96 Pis don't each need manual timedatectl.
+socket.on('enable-ntp', function (data) {
+    var server = (data && data.server) ? String(data.server).replace(/[^A-Za-z0-9._:\-]/g, '') : '';
+    var cmds = [];
+    if (server) {
+        // Write /etc/systemd/timesyncd.conf NTP= line; restart timesyncd
+        cmds.push("grep -q '^\\[Time\\]' /etc/systemd/timesyncd.conf || echo '[Time]' >> /etc/systemd/timesyncd.conf");
+        cmds.push("sed -i '/^NTP=/d' /etc/systemd/timesyncd.conf");
+        cmds.push("sed -i '/^\\[Time\\]/a NTP=" + server + "' /etc/systemd/timesyncd.conf");
+    }
+    cmds.push('timedatectl set-ntp true');
+    cmds.push('systemctl restart systemd-timesyncd');
+    var cmd = cmds.map(function (c) { return '(' + c + ') || sudo -n ' + c; }).join(' && ');
+    console.log('[ntp] enabling:', cmd);
+    exec(cmd, function (err, stdout, stderr) {
+        if (err) console.error('[ntp] enable failed:', err.message, stderr);
+        else console.log('[ntp] enabled');
+        setTimeout(refreshNtpState, 1000);
+    });
+});
+
+socket.on('sync-now', function () {
+    console.log('[ntp] forcing sync');
+    exec('systemctl restart systemd-timesyncd || sudo -n systemctl restart systemd-timesyncd', function (err) {
+        if (err) console.error('[ntp] sync-now failed:', err.message);
+        setTimeout(refreshNtpState, 1500);
+    });
 });
 
 socket.on('reboot', function (data) {
@@ -356,7 +411,16 @@ function heartbeat() {
     if (ipAddress == null) {
         lookupIp();
     }
-    socket.emit('camera-online', {name: cameraName, ipAddress: ipAddress, hostName: hostName, version: version, commit: gitCommit, updateInProgress: updateInProgress, status: recordingStatus});
+    socket.emit('camera-online', {
+        name: cameraName,
+        ipAddress: ipAddress,
+        hostName: hostName,
+        version: version,
+        commit: gitCommit,
+        updateInProgress: updateInProgress,
+        status: recordingStatus,
+        ntp: ntpState
+    });
 }
 
 function getAbsoluteImagePath() {
