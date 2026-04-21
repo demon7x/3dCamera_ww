@@ -68,6 +68,21 @@ sudo service supervisor restart
 Now whenever the system starts up supervisor will start the camera application which will connect to the server software automatically.
 
 
+## Time synchronization (required for tight sync video capture)
+
+`take-video` now carries a `startAt` timestamp and every Pi waits until that
+instant before starting `libcamera-vid`. The tightness of cross-camera sync is
+bounded by the Pis' wall-clock skew, so all nodes should run NTP against the
+same source. With NTP: under ~50 ms skew. Without: expect ~500 ms.
+
+```bash
+sudo timedatectl set-ntp true
+timedatectl status    # verify "NTP service: active" and "System clock synchronized: yes"
+```
+
+For stricter sync, point all Pis at a local NTP server (your router or one of
+the scanning rig hosts running `chronyd`).
+
 ## Optional extra
 
 The software can be updated using an update command built into the web ui, an alternative is to force an update whenever the raspbery pi boots up. If you wish to do this you should enter the following command, this will replace the default startup script with one that will carry out an update.

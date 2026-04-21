@@ -174,13 +174,25 @@ socket.on('take-video', (data) => {
     const msg = data || {};
     console.log('Video recording requested, payload:', msg);
 
-    recordVideo({
+    const opts = {
         cameraId: msg.takeId,
         duration: msg.duration || 10000,
         framerate: msg.framerate || 24,
         customCommand: (msg.customCommands && msg.customCommands[socket.id]) || null,
-        takeId: msg.takeId
-    });
+        takeId: msg.takeId,
+        startTime: msg.time || Date.now()
+    };
+
+    const delay = Math.max(0, (msg.startAt || 0) - Date.now());
+    if (delay > 0) {
+        console.log('[sync] scheduled record start in ' + delay + 'ms');
+        setTimeout(function () { recordVideo(opts); }, delay);
+    } else {
+        if (msg.startAt) {
+            console.warn('[sync] late arrival, starting immediately. clock skew or network lag >' + Math.abs((msg.startAt || 0) - Date.now()) + 'ms');
+        }
+        recordVideo(opts);
+    }
 });
 
 
@@ -336,7 +348,7 @@ function getAbsoluteVideoPath() {
 }
 
 function recordVideo(opts) {
-    const { duration, framerate, customCommand, takeId } = opts || {};
+    const { duration, framerate, customCommand, takeId, startTime } = opts || {};
     let args = [
         '--width', 1920,
         '--height', 1080,
@@ -363,54 +375,43 @@ function recordVideo(opts) {
             console.log('exec error: ' + error);
         }
         console.log("record complete, takeId:", takeId);
-        sendVideo(getAbsoluteVideoPath(), takeId, takeId);
+        sendVideo(getAbsoluteVideoPath(), takeId, startTime);
         recordingStatus = 'idle';
     });
 }
 
 
-function sendVideo(videoPath, takeId,cameraId) {
-    // Check if the recording was successful
-    console.log('Sending video:', videoPath);
+function sendVideo(videoPath, takeId, startTime) {
+    console.log('Sending video:', videoPath, 'takeId=', takeId, 'startTime=', startTime);
     if (!fs.existsSync(videoPath)) {
-        socket.emit('recording-error', { takeId: takeId, cameraId: cameraId });
+        socket.emit('recording-error', { takeId: takeId, reason: 'output file missing' });
         return;
     }
 
     socket.emit('sending-video', { takeId: takeId });
 
-    const fileName = path.basename(videoPath); // Extract the file name from the path
-    const form = new FormData();
-    takeId = guid();
-    console.log('takeId:', takeId);
-    form.append('takeId', takeId);
-    form.append('cameraId', takeId);
+    var fileName = (hostName || cameraName || 'camera') + '.mp4';
+    var form = new FormData();
+    form.append('takeId', takeId || '');
+    form.append('startTime', startTime || Date.now());
+    form.append('cameraName', cameraName || hostName || '');
+    form.append('hostName', hostName || '');
     form.append('fileName', fileName);
     form.append('video', fs.createReadStream(videoPath));
-    console.log('takeIddone:', takeId);
-    // Upload the video to the server
-    form.submit(httpServer + '/new-image', function (err, res) {
+
+    form.submit(httpServer + '/new-video', function (err, res) {
         if (err) {
-            console.error("Error uploading video:", err);
-            socket.emit('recording-error', { takeId: takeId, cameraId: cameraId });
+            console.error('Error uploading video:', err.message || err);
+            socket.emit('recording-error', { takeId: takeId, reason: err.message || String(err) });
         } else {
-            console.log("Video uploaded successfully");
+            console.log('Video uploaded successfully');
         }
 
-        // Delete the temporary video file
         fs.unlink(videoPath, function () {
-            console.log("Temporary video file deleted:", videoPath);
+            console.log('Temporary video file deleted:', videoPath);
         });
 
         if (res) res.resume();
-    });
-
-    // Emit event with metadata
-    socket.emit('new-video', {
-        takeId: takeId,
-        cameraId: cameraId,
-        fileName: fileName,
-        time: Date.now()
     });
 }
 
