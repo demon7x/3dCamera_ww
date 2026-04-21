@@ -195,7 +195,9 @@ socket.on('take-photo', async function(data){
     }
     console.log("Taking a photo with command: ", customCommand);
 
-    takeImage(focusValue, data.command, customCommand);
+    ensureCameraFree(function () {
+        takeImage(focusValue, data.command, customCommand);
+    });
 });
 
 socket.on('take-video', (data) => {
@@ -203,16 +205,19 @@ socket.on('take-video', (data) => {
     console.log('Video recording requested, payload:', msg);
     currentProject = msg.project || null;
 
-    // Spawn immediately so the camera + encoder have time to warm up; the
-    // scheduled SIGUSR1 inside recordVideo handles the actual start timing.
-    recordVideo({
-        cameraId: msg.takeId,
-        duration: msg.duration || 10000,
-        framerate: msg.framerate || 24,
-        customCommand: (msg.customCommands && msg.customCommands[socket.id]) || null,
-        takeId: msg.takeId,
-        startTime: msg.time || Date.now(),
-        startAt: msg.startAt || (Date.now() + 600)
+    // Kill any live preview first so libcamera-vid can acquire the sensor,
+    // then pre-warm the recorder; scheduled SIGUSR1 inside recordVideo
+    // handles the precise start timing.
+    ensureCameraFree(function () {
+        recordVideo({
+            cameraId: msg.takeId,
+            duration: msg.duration || 10000,
+            framerate: msg.framerate || 24,
+            customCommand: (msg.customCommands && msg.customCommands[socket.id]) || null,
+            takeId: msg.takeId,
+            startTime: msg.time || Date.now(),
+            startAt: msg.startAt || (Date.now() + 600)
+        });
     });
 });
 
@@ -292,6 +297,27 @@ function cleanupPreviewProcess() {
     if (previewProcess && previewProcess.exitCode === null) {
         try { previewProcess.kill('SIGTERM'); } catch (e) {}
     }
+}
+
+// Many take-photo / take-video errors trace back to preview still holding
+// the sensor. Kill the preview child first and wait for it to exit (so the
+// kernel actually releases the v4l2 device) before proceeding.
+function ensureCameraFree(cb) {
+    if (!previewProcess || previewProcess.exitCode !== null) {
+        return cb();
+    }
+    console.log('[capture] stopping preview to free camera');
+    var p = previewProcess;
+    previewProcess = null; // prevent respawn race while we wait
+    var handed = false;
+    function proceed() { if (!handed) { handed = true; setTimeout(cb, 250); } }
+    p.once('close', proceed);
+    try { p.kill('SIGTERM'); } catch (e) {}
+    setTimeout(function () {
+        if (p.exitCode === null) { try { p.kill('SIGKILL'); } catch (e) {} }
+    }, 1500);
+    // Absolute upper bound so a stuck python can't block capture forever
+    setTimeout(proceed, 2500);
 }
 
 // Propagate shutdown to the python preview child so supervisor restarts
