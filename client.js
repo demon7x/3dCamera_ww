@@ -349,11 +349,16 @@ function getAbsoluteVideoPath() {
 
 function recordVideo(opts) {
     const { duration, framerate, customCommand, takeId, startTime } = opts || {};
+    // libav codec → libcamera-apps uses ffmpeg as muxer, producing a real MP4
+    // (default h264 codec writes only a raw .h264 elementary stream which
+    // browsers / Finder / QuickTime can't play even with .mp4 extension).
+    // Container is inferred from the output filename extension.
     let args = [
+        '--codec', 'libav',
         '--width', 1920,
         '--height', 1080,
         '--camera', 0,
-        '-b', 90000000,
+        '-b', 20000000,
         '-t', duration || 10000,
         '--framerate', framerate || 24,
         '-o', getAbsoluteVideoPath()
