@@ -49,12 +49,30 @@ var recordingStatus = 'idle';
 var gitCommit = 'unknown';
 
 function fetchGitCommit() {
-    exec('cd ' + __dirname + '; git rev-parse --short HEAD', function (err, stdout) {
-        if (!err && stdout) {
-            gitCommit = stdout.trim();
+    try {
+        var gitDir = path.join(__dirname, '.git');
+        var head = fs.readFileSync(path.join(gitDir, 'HEAD'), 'utf8').trim();
+        var sha = null;
+        if (head.indexOf('ref: ') === 0) {
+            var refName = head.substring(5);
+            var looseRef = path.join(gitDir, refName);
+            if (fs.existsSync(looseRef)) {
+                sha = fs.readFileSync(looseRef, 'utf8').trim();
+            } else {
+                var packed = fs.readFileSync(path.join(gitDir, 'packed-refs'), 'utf8');
+                var m = packed.match(new RegExp('^([a-f0-9]{40}) ' + refName + '$', 'm'));
+                if (m) sha = m[1];
+            }
+        } else {
+            sha = head;
+        }
+        if (sha) {
+            gitCommit = sha.substring(0, 7);
             console.log('Running commit:', gitCommit);
         }
-    });
+    } catch (err) {
+        console.log('Could not determine git commit:', err.message);
+    }
 }
 
 function boot() {
