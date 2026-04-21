@@ -214,23 +214,49 @@ socket.on('update-name', function(data){
 });
 
 socket.on('preview', function(data) {
-    console.log("Starting preview...");
+    var clientSocketId = data && data.clientSocketId;
+    console.log("Starting preview for clientSocketId=", clientSocketId);
 
     if (previewProcess) {
-        previewProcess.kill();
+        try { previewProcess.kill(); } catch (e) {}
     }
-    
-    previewProcess = spawn('python3', ['camera_stream.py']);
 
-    previewProcess.stderr.on('data', (data) => {
-        console.error(`stderr: ${data}`);
+    previewProcess = spawn('python3', ['camera_stream.py'], { cwd: __dirname });
+    var urlEmitted = false;
+
+    function emitPreviewUrl() {
+        if (urlEmitted) return;
+        urlEmitted = true;
+        socket.emit('preview-url', {
+            url: 'http://' + ipAddress + ':8888/',
+            clientSocketId: clientSocketId
+        });
+    }
+
+    previewProcess.stdout.on('data', function (chunk) {
+        var text = chunk.toString();
+        console.log('[preview stdout]', text.trim());
+        if (text.indexOf('MJPEG preview server') !== -1) {
+            emitPreviewUrl();
+        }
     });
 
-    previewProcess.on('close', (code) => {
-        console.log(`child process exited with code ${code}`);
+    previewProcess.stderr.on('data', function (chunk) {
+        console.error('[preview stderr]', chunk.toString().trim());
     });
 
-    socket.emit('preview-url', 'http://' + ipAddress + ':8888');
+    previewProcess.on('error', function (err) {
+        console.error('[preview] spawn error:', err.message);
+    });
+
+    previewProcess.on('close', function (code) {
+        console.log('preview process exited with code', code);
+        urlEmitted = false;
+    });
+
+    // Fallback: if stdout readiness line is missed, still emit URL after 2s
+    // so the browser <img> can at least attempt to connect.
+    setTimeout(emitPreviewUrl, 2000);
 });
 
 socket.on('stop-preview', function() {
