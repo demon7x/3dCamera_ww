@@ -470,15 +470,25 @@ function takeImage(focusValue, command,customCommand) {  // Accept the command p
 
 
 function updateSoftware() {
-    process.env.HOME = require('os').homedir();	
-    childProcess = exec('cd ' + __dirname + '; git pull', function (error, stdout, stderr) {
-        console.log('stdout: ' + stdout);
-        console.log('stderr: ' + stderr);
-        if (error !== null) {
-            console.log('exec error: ' + error);
-        }
-        console.log("Update complete");
-        process.exit();
+    process.env.HOME = require('os').homedir();
+    var safeDir = "'" + __dirname.replace(/'/g, "'\\''") + "'";
+    var cmd = 'cd ' + safeDir + ' && '
+            + 'git -c safe.directory=' + safeDir + ' fetch --all --prune && '
+            + 'git -c safe.directory=' + safeDir + ' reset --hard origin/master && '
+            + '(npm install --no-audit --no-fund || true)';
+    childProcess = exec(cmd, function (error, stdout, stderr) {
+        console.log('update stdout:\n' + stdout);
+        console.log('update stderr:\n' + stderr);
+        var ok = !error;
+        if (error) console.log('update exec error: ' + error);
+        socket.emit('update-result', {
+            cameraName: cameraName,
+            hostName: hostName,
+            ok: ok,
+            stderrTail: (stderr || '').split('\n').filter(Boolean).slice(-5).join('\n')
+        });
+        console.log('Update ' + (ok ? 'complete' : 'failed') + ', exiting for supervisor restart');
+        setTimeout(function () { process.exit(ok ? 0 : 1); }, 500);
     });
 }
 
