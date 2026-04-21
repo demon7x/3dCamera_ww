@@ -141,14 +141,15 @@ socket.on('take-photo', async function(data){
 });
 
 socket.on('take-video', (data) => {
-    console.log(`Video recording requested for camera: ${data}`);
-    
-    // 올바른 구조로 recordVideo 호출
+    const msg = data || {};
+    console.log('Video recording requested, payload:', msg);
+
     recordVideo({
-        cameraId: data.takeId,
-        duration: 10000,
-        framerate: data.framerate || 24, // 기본 프레임 속도 24fps
-        takeId: data.takeId
+        cameraId: msg.takeId,
+        duration: msg.duration || 10000,
+        framerate: msg.framerate || 24,
+        customCommand: (msg.customCommands && msg.customCommands[socket.id]) || null,
+        takeId: msg.takeId
     });
 });
 
@@ -232,7 +233,8 @@ function getAbsoluteVideoPath() {
     return path.join(videoDir, fileName);
 }
 
-function recordVideo({duration, framerate, customCommand, takeId}) {
+function recordVideo(opts) {
+    const { duration, framerate, customCommand, takeId } = opts || {};
     let args = [
         '--width', 1920,
         '--height', 1080,
