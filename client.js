@@ -186,10 +186,23 @@ socket.on('take-video', (data) => {
 
 socket.on('update-software', function(data){
     console.log("Updating software");
-    
+
     updateInProgress = true;
 
     updateSoftware();
+});
+
+socket.on('reboot', function (data) {
+    console.log("Reboot requested");
+    // Short delay so the socket can flush the log and any heartbeat.
+    setTimeout(function () {
+        exec('/sbin/reboot || sudo -n /sbin/reboot', function (err, stdout, stderr) {
+            if (err) {
+                console.error('reboot failed:', err.message);
+                console.error('stderr:', stderr);
+            }
+        });
+    }, 300);
 });
 
 socket.on('update-name', function(data){
