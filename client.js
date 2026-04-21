@@ -355,38 +355,59 @@ function lookupIp() {
     });
 }
 
-function sendImage(code) {
-    if (code !== 0) {
-        socket.emit('photo-error', {takeId:takeId});
+function emitPhotoError(stage, extra) {
+    var payload = {
+        takeId: takeId,
+        cameraName: cameraName,
+        hostName: hostName,
+        stage: stage
+    };
+    if (extra) {
+        Object.keys(extra).forEach(function (k) { payload[k] = extra[k]; });
+    }
+    console.log('photo-error:', JSON.stringify(payload));
+    socket.emit('photo-error', payload);
+}
+
+function sendImage(code, signal, stderrText, timedOut) {
+    if (code !== 0 || timedOut) {
+        var tail = (stderrText || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean).slice(-3).join(' | ');
+        var reason = timedOut
+            ? 'libcamera-still killed after 10s timeout'
+            : (tail || ('exit code ' + code + (signal ? ' signal ' + signal : '')));
+        emitPhotoError('capture', {
+            exitCode: code,
+            signal: signal || null,
+            timedOut: !!timedOut,
+            reason: reason
+        });
         return;
     }
-    
+
     socket.emit('sending-photo', {takeId:takeId});
-    
+
     fs.readFile(getAbsoluteImagePath(), function(err, buffer){
         if (typeof buffer == 'undefined') {
-            socket.emit('photo-error', {takeId:takeId});
+            emitPhotoError('read', {reason: err ? err.message : 'output file missing'});
             return;
         }
-        
+
         var totalDelay = Date.now() - lastReceiveTime;
         var imageDelay = Date.now() - photoStartTime;
         socket.emit('new-photo', {
-            takeId:takeId, 
-            startTime:lastReceiveTime, 
-            time:Date.now(), 
+            takeId:takeId,
+            startTime:lastReceiveTime,
+            time:Date.now(),
             photoStartTime:photoStartTime,
             totalDelay: totalDelay,
             imageDelay: imageDelay,
             fileName: fileName
         });
     });
-    
-    //var fileName = guid() + '.jpg';
+
     var fileName = os.hostname() + '.jpg';
-    
+
     var form = new FormData();
-    //form.append('takeId', takeId);
     form.append('startTime', lastReceiveTime);
     form.append('cameraName', cameraName);
     form.append('fileName', fileName);
@@ -394,16 +415,16 @@ function sendImage(code) {
 
     form.submit(httpServer + '/new-image', function(err, res) {
         if (err) {
-            socket.emit('photo-error', {takeId:takeId});
+            emitPhotoError('upload', {reason: err.message || String(err)});
         } else {
             console.log("Image uploaded");
         }
-        
+
         fs.unlink(getAbsoluteImagePath(), function () {
             // file deleted
         });
-        
-        res.resume();
+
+        if (res) res.resume();
     });
 }
 
@@ -428,9 +449,22 @@ function takeImage(focusValue, command,customCommand) {  // Accept the command p
     }
 
     var imageProcess = spawn('libcamera-still', args);
-    setTimeout(function() { imageProcess.kill() }, 10000);
+    var stderrBuf = '';
+    imageProcess.stderr.on('data', function (data) { stderrBuf += data.toString(); });
+    imageProcess.on('error', function (err) {
+        emitPhotoError('spawn', {reason: err.message || String(err)});
+    });
 
-    imageProcess.on('exit', sendImage);
+    var timedOut = false;
+    var killTimer = setTimeout(function () {
+        timedOut = true;
+        imageProcess.kill();
+    }, 10000);
+
+    imageProcess.on('exit', function (code, signal) {
+        clearTimeout(killTimer);
+        sendImage(code, signal, stderrBuf, timedOut);
+    });
 }
 
 
