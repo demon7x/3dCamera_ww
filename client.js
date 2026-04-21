@@ -45,6 +45,7 @@ var cameraName = null;
 var ipAddress  = null;
 var hostName   = null;
 var previewProcess;
+var recordingStatus = 'idle';
 
 function boot() {
     console.log("Starting");
@@ -114,10 +115,10 @@ function applyFocusValue(focusValue, callback) {
 socket.on('connect', function(){
     console.log('A socket connection was made');
     
-    socket.emit('camera-online', {name: cameraName, ipAddress: ipAddress, version: version});
-    
+    socket.emit('camera-online', {name: cameraName, ipAddress: ipAddress, version: version, status: recordingStatus});
+
     // Setup a regular heartbeat interval
-    var heartbeatIntervalID = setInterval(heartbeat, 50000);
+    var heartbeatIntervalID = setInterval(heartbeat, 3000);
 });
 
 
@@ -217,7 +218,7 @@ function heartbeat() {
     if (ipAddress == null) {
         lookupIp();
     }
-    socket.emit('camera-online', {name: cameraName, ipAddress: ipAddress, hostName: hostName, version: version, updateInProgress: updateInProgress});
+    socket.emit('camera-online', {name: cameraName, ipAddress: ipAddress, hostName: hostName, version: version, updateInProgress: updateInProgress, status: recordingStatus});
 }
 
 function getAbsoluteImagePath() {
@@ -231,16 +232,14 @@ function getAbsoluteVideoPath() {
     return path.join(videoDir, fileName);
 }
 
-function recordVideo(duration, framerate, customCommand,takeId) {
+function recordVideo({duration, framerate, customCommand, takeId}) {
     let args = [
-        //'--codec','mjpeg',
         '--width', 1920,
         '--height', 1080,
         '--camera', 0,
-        //'-q', 90,
         '-b', 90000000,
-        '-t', 10000, // Default to 30 seconds
-        '--framerate', framerate || 24, // Default to 24 fps
+        '-t', duration || 10000,
+        '--framerate', framerate || 24,
         '-o', getAbsoluteVideoPath()
     ];
 
@@ -251,20 +250,18 @@ function recordVideo(duration, framerate, customCommand,takeId) {
 
     console.log('Recording video with args:', args.join(' '));
 
-    process.env.HOME = require('os').homedir();	
-    childProcess = exec('cd ' + __dirname + '; libcamera-vid '+args.join(' '), function (error, stdout, stderr) {
+    recordingStatus = 'recording';
+    process.env.HOME = require('os').homedir();
+    childProcess = exec('cd ' + __dirname + '; libcamera-vid ' + args.join(' '), function (error, stdout, stderr) {
         console.log('stdout: ' + stdout);
         console.log('stderr: ' + stderr);
         if (error !== null) {
             console.log('exec error: ' + error);
         }
-        console.log("recode complete");
-        console.log(takeId);
-        process.exit(sendVideo(getAbsoluteVideoPath(), takeId,takeId));
+        console.log("record complete, takeId:", takeId);
+        sendVideo(getAbsoluteVideoPath(), takeId, takeId);
+        recordingStatus = 'idle';
     });
-    // Process the customCommand to customize the arguments
-
-    // Spawn the libcamera-vid process
 }
 
 
