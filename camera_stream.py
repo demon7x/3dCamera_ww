@@ -40,7 +40,9 @@ class StreamingHandler(BaseHTTPRequestHandler):
         sys.stderr.write("[preview http] %s\n" % (fmt % args))
 
     def do_GET(self):
-        if self.path not in ('/', '/stream', '/stream.mjpg'):
+        # Strip query string so cache-busters like "?t=1234" still match
+        path = self.path.split('?', 1)[0]
+        if path not in ('/', '/stream', '/stream.mjpg'):
             self.send_error(404)
             return
         self.send_response(200)
